@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SugarSync — Glucose Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg:      #090b10;
+      --panel:   #10141e;
+      --border:  #1e2535;
+      --accent:  #00d4ff;
+      --green:   #22c55e;
+      --yellow:  #f59e0b;
+      --red:     #ef4444;
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+      --mono:    'Space Mono', monospace;
+      --sans:    'DM Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+
+    .logo h1 {
+      font-family: var(--mono);
+      font-size: 1.4rem;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span {
+      font-family: var(--sans);
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: block;
+      font-weight: 300;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    /* Grid layout */
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .grid-main {
+      grid-template-columns: 340px 1fr;
+      grid-template-rows: auto auto;
+    }
+
+    .grid-bottom {
+      grid-template-columns: 1fr 1fr 1fr;
+      margin-top: 0;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.4;
+    }
+
+    .card-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 16px;
+    }
+
+    /* Glucose readout */
+    .glucose-main {
+      grid-row: span 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      min-height: 280px;
+    }
+
+    .glucose-value {
+      font-family: var(--mono);
+      font-size: 5rem;
+      font-weight: 700;
+      line-height: 1;
+      transition: color 0.5s;
+      margin: 8px 0;
+    }
+
+    .glucose-unit {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+
+    .glucose-class {
+      margin-top: 20px;
+      padding: 8px 24px;
+      border-radius: 40px;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      transition: all 0.5s;
+    }
+
+    .class-low    { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+    .class-normal { background: rgba(34,197,94,0.15);  color: var(--green);  border: 1px solid rgba(34,197,94,0.3); }
+    .class-high   { background: rgba(239,68,68,0.15);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+
+    .last-update {
+      margin-top: 16px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* Probability bars */
+    .prob-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .prob-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 48px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .prob-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .prob-track {
+      background: var(--bg);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .prob-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .fill-low    { background: var(--yellow); }
+    .fill-normal { background: var(--green); }
+    .fill-high   { background: var(--red); }
+
+    .prob-value {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      text-align: right;
+    }
+
+    /* Vitals */
+    .vitals-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .vital {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .vital-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .vital-value {
+      font-family: var(--mono);
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    .vital-unit {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+
+    /* Chart */
+    .chart-card {
+      grid-column: span 3;
+      min-height: 220px;
+    }
+
+    .chart-wrap {
+      height: 200px;
+      position: relative;
+    }
+
+    /* Demo banner */
+    .demo-banner {
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--yellow);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 40px;
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    /* Glow on value change */
+    @keyframes glow {
+      0%, 100% { text-shadow: none; }
+      50% { text-shadow: 0 0 20px currentColor; }
+    }
+
+    .glow { animation: glow 1s ease; }
+
+    @media (max-width: 900px) {
+      .grid-main  { grid-template-columns: 1fr; }
+      .grid-bottom { grid-template-columns: 1fr; }
+      .glucose-main { grid-row: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🩸</div>
+    <div>
+      <h1>SugarSync</h1>
+      <span>Non-Invasive Glucose Monitor</span>
+    </div>
+  </div>
+  <div class="status-badge">
+    <div class="dot" id="dot"></div>
+    <span id="status-text">LIVE</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="demo-banner" id="demo-banner">
+    ⚠ DEMO MODE — No hardware connected. Showing simulated glucose data. Connect Arduino and train models to enable live inference.
+  </div>
+
+  <!-- Main grid -->
+  <div class="grid grid-main">
+
+    <!-- Glucose readout -->
+    <div class="card glucose-main">
+      <div class="card-label">Blood Glucose</div>
+      <div class="glucose-value" id="glucose-val" style="color: var(--green)">—</div>
+      <div class="glucose-unit">mg / dL</div>
+      <div class="glucose-class class-normal" id="glucose-class">—</div>
+      <div class="last-update" id="last-update">Waiting for data…</div>
+    </div>
+
+    <!-- Probability bars -->
+    <div class="card">
+      <div class="card-label">Category Confidence</div>
+      <div class="prob-bars">
+        <div class="prob-row">
+          <span class="prob-label">Low</span>
+          <div class="prob-track"><div class="prob-fill fill-low" id="bar-low" style="width:0%"></div></div>
+          <span class="prob-value" id="pct-low">0%</span>
+        </div>
+        <div class="prob-row">
+          <span class="prob-label">Normal</span>
+          <div class="prob-track"><div class="prob-fill fill-normal" id="bar-normal" style="width:0%"></div></div>
+          <span class="prob-value" id="pct-normal">0%</span>
+        </div>
+        <div class="prob-row">
+          <span class="prob-label">High</span>
+          <div class="prob-track"><div class="prob-fill fill-high" id="bar-high" style="width:0%"></div></div>
+          <span class="prob-value" id="pct-high">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vitals -->
+    <div class="card">
+      <div class="card-label">Signal Vitals</div>
+      <div class="vitals-grid">
+        <div class="vital">
+          <div class="vital-label">Heart Rate</div>
+          <div class="vital-value" id="hr-val">—<span class="vital-unit">bpm</span></div>
+        </div>
+        <div class="vital">
+          <div class="vital-label">SQI</div>
+          <div class="vital-value" id="sqi-val">—</div>
+        </div>
+        <div class="vital">
+          <div class="vital-label">Session Mean</div>
+          <div class="vital-value" id="mean-val">—<span class="vital-unit">mg/dL</span></div>
+        </div>
+        <div class="vital">
+          <div class="vital-label">Readings</div>
+          <div class="vital-value" id="count-val">0</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Trend chart -->
+  <div class="grid" style="margin-top:20px">
+    <div class="card chart-card">
+      <div class="card-label">Glucose Trend — Last 10 Minutes</div>
+      <div class="chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>SugarSync · VIT Chennai · SCOPE Dept.</span>
+  <span id="footer-ts">—</span>
+</footer>
+
+<script>
+// ── Chart Setup ────────────────────────────────────────────────────────────
+const ctx = document.getElementById('trendChart').getContext('2d');
+const trendChart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'Glucose (mg/dL)',
+      data: [],
+      borderColor: '#00d4ff',
+      backgroundColor: 'rgba(0,212,255,0.07)',
+      borderWidth: 2,
+      tension: 0.4,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    scales: {
+      x: {
+        grid:   { color: 'rgba(255,255,255,0.04)' },
+        ticks:  { color: '#64748b', font: { family: 'Space Mono', size: 10 }, maxTicksLimit: 8 },
+      },
+      y: {
+        min: 50, max: 300,
+        grid:  { color: 'rgba(255,255,255,0.04)' },
+        ticks: { color: '#64748b', font: { family: 'Space Mono', size: 10 } },
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#10141e',
+        borderColor: '#1e2535',
+        borderWidth: 1,
+        titleFont: { family: 'Space Mono', size: 11 },
+        bodyFont:  { family: 'DM Sans', size: 12 },
+      }
+    }
+  }
+});
+
+// Reference lines (Low/High boundaries)
+const LOW_THRESHOLD  = 70;
+const HIGH_THRESHOLD = 140;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let readings = [];
+let readingCount = 0;
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const glucoseEl  = document.getElementById('glucose-val');
+const classEl    = document.getElementById('glucose-class');
+const lastUpEl   = document.getElementById('last-update');
+const hrEl       = document.getElementById('hr-val');
+const sqiEl      = document.getElementById('sqi-val');
+const meanEl     = document.getElementById('mean-val');
+const countEl    = document.getElementById('count-val');
+const footerTs   = document.getElementById('footer-ts');
+const demoBanner = document.getElementById('demo-banner');
+
+function setGlucoseColor(cls) {
+  const colors = { Low: '#f59e0b', Normal: '#22c55e', High: '#ef4444' };
+  return colors[cls] || '#00d4ff';
+}
+
+function setClassStyle(el, cls) {
+  el.className = `glucose-class class-${cls.toLowerCase()}`;
+}
+
+function setProbBar(id, barId, value) {
+  const pct = Math.round(value * 100);
+  document.getElementById(id).textContent = pct + '%';
+  document.getElementById(barId).style.width = pct + '%';
+}
+
+function formatTime(ms) {
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ── Fetch + Update ─────────────────────────────────────────────────────────
+async function fetchReading() {
+  try {
+    const res  = await fetch('/api/reading');
+    const data = await res.json();
+
+    // Update glucose
+    const oldVal = parseFloat(glucoseEl.textContent);
+    const newVal = data.glucose_mgdl;
+
+    glucoseEl.textContent = newVal.toFixed(1);
+    glucoseEl.style.color = setGlucoseColor(data.class);
+    glucoseEl.classList.remove('glow');
+    void glucoseEl.offsetWidth;  // reflow
+    glucoseEl.classList.add('glow');
+
+    setClassStyle(classEl, data.class);
+    classEl.textContent = data.class.toUpperCase();
+
+    lastUpEl.textContent = `Last updated: ${formatTime(data.timestamp)}`;
+    footerTs.textContent = new Date().toLocaleString();
+
+    // Probabilities
+    setProbBar('pct-low',    'bar-low',    data.prob_low);
+    setProbBar('pct-normal', 'bar-normal', data.prob_normal);
+    setProbBar('pct-high',   'bar-high',   data.prob_high);
+
+    // Vitals
+    hrEl.innerHTML  = `${data.hr_bpm.toFixed(0)}<span class="vital-unit">bpm</span>`;
+    sqiEl.textContent = data.sqi.toFixed(3);
+
+    readingCount++;
+    countEl.textContent = readingCount;
+
+    // Readings store
+    readings.push({ t: data.timestamp, g: data.glucose_mgdl });
+    if (readings.length > 120) readings.shift();
+
+    // Session mean
+    const mean = readings.reduce((s, r) => s + r.g, 0) / readings.length;
+    meanEl.innerHTML = `${mean.toFixed(1)}<span class="vital-unit">mg/dL</span>`;
+
+    // Demo banner
+    if (!data.demo_mode) demoBanner.style.display = 'none';
+
+    // Update chart
+    updateChart();
+
+  } catch (e) {
+    console.error('Fetch error:', e);
+  }
+}
+
+function updateChart() {
+  const labels = readings.map(r => formatTime(r.t));
+  const values = readings.map(r => r.g);
+
+  trendChart.data.labels   = labels;
+  trendChart.data.datasets[0].data = values;
+  trendChart.update('none');
+}
+
+// ── Poll every 3 seconds ───────────────────────────────────────────────────
+fetchReading();
+setInterval(fetchReading, 3000);
+</script>
+
+</body>
+</html>

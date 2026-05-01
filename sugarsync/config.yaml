@@ -1,0 +1,163 @@
+# SugarSync — Central Configuration
+# Edit this file to tune the pipeline without touching source code.
+
+# ── Paths ──────────────────────────────────────────────────────────────────
+paths:
+  raw_data:       data/raw/
+  processed_data: data/processed/
+  synthetic_data: data/synthetic/
+  models:         models/
+  reports:        reports/
+  logs:           logs/
+
+# ── Acquisition ────────────────────────────────────────────────────────────
+acquisition:
+  default_port:   COM3          # Windows; Linux: /dev/ttyUSB0
+  baud_rate:      115200
+  sample_rate_hz: 100
+  buffer_size:    500           # samples in rolling display buffer
+
+# ── Signal Quality ─────────────────────────────────────────────────────────
+sqi:
+  min_threshold:  0.60          # discard segments below this SQI
+  formula:        "max(0, 1 - sigma_delta_rr / mean_delta_rr)"
+
+# ── Preprocessing ──────────────────────────────────────────────────────────
+preprocessing:
+  detrend: true
+  filter:
+    type:       butterworth
+    order:      4
+    lowcut_hz:  0.5
+    highcut_hz: 5.0
+    zero_phase: true             # forward-backward (filtfilt)
+  peak_detection:
+    method:     scipy_find_peaks
+    min_distance_factor: 0.40   # fraction of sample_rate
+    height_adaptive: true
+    hr_min_bpm: 40
+    hr_max_bpm: 200
+
+# ── Feature Extraction ─────────────────────────────────────────────────────
+features:
+  window_size_s:    6.0         # outer window (600 samples @ 100Hz)
+  subwindow_size_s: 3.0         # overlapping subwindow (300 samples)
+  overlap_fraction: 0.5
+  normalize:        false       # tree models don't need it
+
+  time_domain:
+    - mean
+    - std
+    - variance
+    - skewness
+    - kurtosis
+    - min
+    - max
+    - range
+    - q25
+    - q50
+    - q75
+    - iqr
+
+  morphological:
+    - ac_component
+    - dc_component
+    - ac_dc_ratio
+    - pulse_height_acpp
+    - systolic_peak
+    - diastolic_valley
+    - pulse_width_50pct
+    - rise_time
+    - fall_time
+    - valley_depth
+
+  frequency_domain:
+    lf_band:  [0.04, 0.15]
+    hf_band:  [0.15, 0.40]
+    features:
+      - lf_power
+      - hf_power
+      - lf_hf_ratio
+      - total_power
+      - spectral_centroid
+      - spectral_bandwidth
+      - dominant_frequency
+      - spectral_entropy
+
+  hrv_quality:
+    - hr_bpm
+    - rmssd
+    - sdnn
+    - ppi_mean
+    - ppi_std
+    - pnn50
+    - sqi
+    - beat_count
+    - ibi_regularity
+    - peak_confidence
+
+# ── Synthetic Augmentation ─────────────────────────────────────────────────
+augmentation:
+  target_samples:   2484
+  seed:             42
+  physiological_bounds:
+    glucose_mgdl:   [70, 300]
+    sqi:            [0.60, 0.98]
+    meal_gap_min:   [15, 360]
+    hr_bpm:         [45, 110]
+    age_years:      [18, 80]
+
+# ── Models ─────────────────────────────────────────────────────────────────
+models:
+  train_val_test_split: [0.70, 0.15, 0.15]
+  random_state: 42
+  no_subject_overlap: true
+
+  xgboost_regressor:
+    n_estimators:       500
+    max_depth:          6
+    learning_rate:      0.05
+    subsample:          0.80
+    colsample_bytree:   0.80
+    reg_alpha:          0.10
+    reg_lambda:         1.00
+    early_stopping_rounds: 50
+    eval_metric:        mae
+    verbosity:          1
+
+  lightgbm_classifier:
+    n_estimators:       500
+    num_leaves:         63
+    learning_rate:      0.05
+    feature_fraction:   0.80
+    bagging_fraction:   0.80
+    bagging_freq:       5
+    class_weight:       balanced
+    verbose:            -1
+    early_stopping_rounds: 50
+
+  glucose_classes:
+    low:    [0, 70]      # mg/dL
+    normal: [70, 140]
+    high:   [140, 999]
+    labels: [0, 1, 2]
+    names:  [Low, Normal, High]
+
+# ── Explainability ─────────────────────────────────────────────────────────
+explainability:
+  shap:
+    background_samples: 100
+    max_display:        20
+  lime:
+    num_features:       15
+    num_samples:        1000
+  lrp:
+    shallow_nn_layers:  [64, 32, 16]
+    epsilon:            1e-6
+
+# ── Dashboard ──────────────────────────────────────────────────────────────
+dashboard:
+  host:   0.0.0.0
+  port:   5000
+  debug:  false
+  update_interval_ms: 500

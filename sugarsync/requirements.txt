@@ -1,0 +1,50 @@
+# SugarSync — Python Dependencies
+# Install: pip install -r requirements.txt
+
+# Core scientific stack
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# Signal processing (included in scipy, explicit for clarity)
+# scipy.signal — butterworth filter, find_peaks, welch
+
+# Machine learning
+xgboost>=2.0.0
+lightgbm>=4.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# Explainability
+shap>=0.44.0
+lime>=0.2.0.1
+
+# Data & serialisation
+openpyxl>=3.1.0         # Excel read/write
+pyyaml>=6.0.0           # config.yaml parsing
+
+# Hardware interface
+pyserial>=3.5           # Arduino USB serial
+
+# CLI & output
+rich>=13.0.0            # Beautiful terminal output
+tqdm>=4.65.0            # Progress bars
+
+# Visualisation
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Dashboard
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Notebooks
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Optional: deep learning (for LRP shallow NN)
+# torch>=2.0.0
